@@ -300,6 +300,7 @@ struct device {
 
 	char ifname[IFNAMSIZ];
 	int ifindex;
+	unsigned int vrf_table;
 
 	struct blob_attr *config;
 	bool config_pending;

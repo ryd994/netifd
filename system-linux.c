@@ -1161,12 +1161,17 @@ static char *system_get_vrf(const char *name, char *buf, int buflen)
 	char master[PATH_MAX];
 	char *path;
 	ssize_t len = -1;
+	int ret;
 
-	if (snprintf(master, sizeof(master), "%s/devices/virtual/net/%s/master", sysfs_path, name) <= 0)
+	if (buflen < 2)
 		return NULL;
 
-	len = readlink(master, buf, buflen);
-	if (len < 0)
+	ret = snprintf(master, sizeof(master), "%s/class/net/%s/master", sysfs_path, name);
+	if (ret < 0 || (size_t)ret >= sizeof(master))
+		return NULL;
+
+	len = readlink(master, buf, buflen - 1);
+	if (len < 0 || len == buflen - 1)
 		return NULL;
 
 	buf[len] = 0;
@@ -1181,8 +1186,12 @@ static int
 system_vrf_if(int vrf_index, struct device *dev)
 {
 	struct nl_msg *msg;
+	int ifindex = system_if_resolve(dev);
 
-	msg = __system_ifinfo_msg(AF_UNSPEC, dev->ifindex, NULL, RTM_SETLINK, NLM_F_REQUEST);
+	if (!ifindex)
+		return -ENODEV;
+
+	msg = __system_ifinfo_msg(AF_UNSPEC, ifindex, NULL, RTM_SETLINK, NLM_F_REQUEST);
 	if (!msg)
 		return -1;
 
@@ -1193,8 +1202,12 @@ system_vrf_if(int vrf_index, struct device *dev)
 int system_vrf_addif(struct device *vrf, struct device *dev)
 {
 	char *oldvrf;
+	int vrf_index = system_if_resolve(vrf);
 	int tries;
 	int ret;
+
+	if (!vrf_index)
+		return -ENODEV;
 
 	for (tries = 0; tries < 3; tries++) {
 		ret = 0;
@@ -1202,7 +1215,7 @@ int system_vrf_addif(struct device *vrf, struct device *dev)
 		if (oldvrf && !strcmp(oldvrf, vrf->ifname))
 			break;
 
-		ret = system_vrf_if(vrf->ifindex, dev);
+		ret = system_vrf_if(vrf_index, dev);
 		if (!ret)
 			break;
 

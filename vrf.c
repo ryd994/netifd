@@ -133,6 +133,7 @@ vrf_disable_member(struct vrf_member *vm, bool keep_dev)
 	vm->active = false;
 
 	system_vrf_delif(&vst->dev, vm->dev.dev);
+	vm->dev.dev->vrf_table = 0;
 	if (!keep_dev)
 		device_release(&vm->dev);
 
@@ -181,13 +182,13 @@ vrf_enable_member(struct vrf_member *vm)
 	if (ret)
 		goto error;
 
-	ret = device_claim(&vm->dev);
-	if (ret < 0)
-		goto error;
-
 	dev = vm->dev.dev;
-	if (dev->settings.auth && !dev->auth_status)
+	if (dev->settings.auth && !dev->auth_status) {
+		ret = device_claim(&vm->dev);
+		if (ret < 0)
+			goto error;
 		return -1;
+	}
 
 	if (vm->active)
 		return 0;
@@ -198,7 +199,15 @@ vrf_enable_member(struct vrf_member *vm)
 		goto error;
 	}
 
+	/* Enslave before claiming: bringing up the port can start its protocol. */
+	dev->vrf_table = vst->table;
 	vm->active = true;
+	ret = device_claim(&vm->dev);
+	if (ret < 0) {
+		vrf_disable_member(vm, false);
+		goto error;
+	}
+
 	device_set_present(&vst->dev, true);
 	device_broadcast_event(&vst->dev, DEV_EVENT_TOPO_CHANGE);
 
@@ -565,6 +574,7 @@ vrf_apply_settings(struct vrf_state *vst, struct blob_attr **tb)
 	vst->table = 10; /* default VRF routing table */
 	if ((cur = tb[VRF_ATTR_TABLE]))
 		system_resolve_rt_table(blobmsg_data(cur), &vst->table);
+	vst->dev.vrf_table = vst->table;
 }
 
 static enum dev_change_type

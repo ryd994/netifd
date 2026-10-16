@@ -354,7 +354,10 @@ interface_set_route_info(struct interface *iface, struct device_route *route)
 		route->metric = iface->metric;
 
 	if (!(route->flags & DEVROUTE_TABLE)) {
+		route->flags &= ~DEVROUTE_SRCTABLE;
 		route->table = (v6) ? iface->ip6table : iface->ip4table;
+		if (!route->table && iface->l3_dev.dev)
+			route->table = iface->l3_dev.dev->vrf_table;
 		if (route->table)
 			route->flags |= DEVROUTE_SRCTABLE;
 	}
@@ -524,12 +527,7 @@ interface_ip_add_route(struct interface *iface, struct blob_attr *attr, bool v6)
 			goto error;
 		}
 
-		/* only set the table flag if not using the main (default) table */
-		if (system_is_default_rt_table(route->table))
-			route->table = 0;
-
-		if (route->table)
-			route->flags |= DEVROUTE_TABLE;
+		route->flags |= DEVROUTE_TABLE;
 	}
 
 	if ((cur = tb[ROUTE_VALID]) != NULL) {
@@ -677,6 +675,10 @@ interface_handle_subnet_route(struct interface *iface, struct device_addr *addr,
 		return;
 
 	r->flags |= DEVROUTE_PROTO;
+	if (dev->vrf_table) {
+		r->table = dev->vrf_table;
+		r->flags |= DEVROUTE_SRCTABLE;
+	}
 	system_del_route(dev, r);
 
 	r->flags &= ~DEVROUTE_PROTO;
