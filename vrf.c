@@ -209,6 +209,7 @@ vrf_enable_member(struct vrf_member *vm)
 	}
 
 	device_set_present(&vst->dev, true);
+	device_broadcast_event(dev, DEV_EVENT_VRF_CHANGE);
 	device_broadcast_event(&vst->dev, DEV_EVENT_TOPO_CHANGE);
 
 	return 0;

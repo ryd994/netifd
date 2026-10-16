@@ -702,6 +702,7 @@ const char *device_event_name(enum device_event ev)
 		[DEV_EVENT_LINK_UP] = "link_up",
 		[DEV_EVENT_LINK_DOWN] = "link_down",
 		[DEV_EVENT_TOPO_CHANGE] = "topo_change",
+		[DEV_EVENT_VRF_CHANGE] = "vrf_change",
 		[DEV_EVENT_VLAN_UPDATE] = "vlan_update",
 	};
 

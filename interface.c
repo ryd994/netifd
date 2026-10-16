@@ -532,6 +532,20 @@ interface_main_dev_cb(struct device_user *dep, enum device_event ev)
 		if (iface->renew)
 			interface_proto_event(iface->proto, PROTO_CMD_RENEW, false);
 		return;
+	case DEV_EVENT_VRF_CHANGE: {
+		bool config_enabled = iface->config_ip.enabled;
+		bool proto_enabled = iface->proto_ip.enabled;
+
+		if (iface->state != IFS_UP)
+			break;
+
+		/* Enslaving moves connected routes but drops gateway routes. */
+		interface_ip_set_enabled(&iface->config_ip, false);
+		interface_ip_set_enabled(&iface->proto_ip, false);
+		interface_ip_set_enabled(&iface->config_ip, config_enabled);
+		interface_ip_set_enabled(&iface->proto_ip, proto_enabled);
+		break;
+	}
 	default:
 		break;
 	}

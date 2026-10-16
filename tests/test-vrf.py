@@ -109,6 +109,7 @@ run(r"""
 #include <stdbool.h>
 #define DEVICE 0
 #define DEV_EVENT_TOPO_CHANGE 1
+#define DEV_EVENT_VRF_CHANGE 2
 #define D(...) do {} while (0)
 struct device {
     unsigned int vrf_table;
@@ -144,7 +145,7 @@ static void vrf_disable_member(struct vrf_member *vm, bool keep)
 static void device_set_present(struct device *dev, bool value)
 { (void)dev; assert(value); }
 static void device_broadcast_event(struct device *dev, int event)
-{ (void)dev; assert(event == DEV_EVENT_TOPO_CHANGE); }
+{ (void)dev; assert(event == DEV_EVENT_TOPO_CHANGE || event == DEV_EVENT_VRF_CHANGE); }
 """ + "static int\n" + function("vrf.c", "vrf_enable_member") + r"""
 int main(void)
 {
@@ -181,4 +182,41 @@ int main(void)
 }
 """)
 
-print("VRF route precedence, member lifecycle and physical master lookup: OK")
+interface_source = (ROOT / "interface.c").read_text()
+refresh_start = interface_source.index("\tcase DEV_EVENT_VRF_CHANGE:")
+refresh_end = interface_source.index("\n\tdefault:", refresh_start)
+run(r"""
+#include <assert.h>
+#include <stdbool.h>
+#define DEV_EVENT_VRF_CHANGE 1
+#define IFS_UP 2
+struct ip { bool enabled; };
+struct interface { int state; struct ip config_ip, proto_ip; };
+static int calls;
+static bool states[4];
+static void interface_ip_set_enabled(struct ip *ip, bool enabled)
+{
+    states[calls++] = enabled;
+    ip->enabled = enabled;
+}
+static void refresh(struct interface *iface)
+{
+    switch (DEV_EVENT_VRF_CHANGE) {
+""" + interface_source[refresh_start:refresh_end] + r"""
+    }
+}
+int main(void)
+{
+    struct interface iface = { .state = IFS_UP, .config_ip.enabled = true };
+    refresh(&iface);
+    assert(calls == 4 && !states[0] && !states[1] && states[2] && !states[3]);
+    assert(iface.config_ip.enabled && !iface.proto_ip.enabled);
+    calls = 0;
+    iface.state = 0;
+    refresh(&iface);
+    assert(!calls);
+    return 0;
+}
+""")
+
+print("VRF route precedence, member lifecycle, IP refresh and master lookup: OK")

@@ -158,6 +158,8 @@ Routes without an explicit table inherit the member's VRF table. This does
 not set interface ip4table/ip6table and does not create source, destination
 or loopback policy rules; Linux's l3mdev rule selects the routing domain.
 Explicit route tables and interface table overrides retain precedence.
+Attaching an already-configured member refreshes its IP configuration,
+restoring gateway routes that Linux drops when moving it into the VRF.
 The defaultroute option still controls whether protocol defaults are used.
 Use peerdns=0 to keep a VRF uplink's DNS servers out of the system resolver,
 and configure a separate VRF-bound resolver when DNS service is required.
